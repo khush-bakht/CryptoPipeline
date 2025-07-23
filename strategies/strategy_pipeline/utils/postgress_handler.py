@@ -86,7 +86,96 @@ class DatabaseManager:
             method='multi'
         )
         print(f"Signals saved to strategy_signal.{table_name} successfully.")
+    
+    def fetch_ohlcv_data(self, exchange: str, symbol: str, time_horizon: str) -> pd.DataFrame:
+        """
+        Fetch OHLCV data from schema 'binance_data' or other exchange-based schema.
+        Always fetch data at '1m' resolution regardless of the strategy time horizon.
+        """
+        table_name = f"{symbol.lower()}_1m"  # Always 1-minute table
+        schema_name = f"{exchange.lower()}_data"
 
+        query = f"""
+            SELECT datetime, open, high, low, close, volume
+            FROM {schema_name}.{table_name}
+            ORDER BY datetime
+        """
+        print(f"Downloading data from table: {schema_name}.{table_name}")
+        df = pd.read_sql(query, self.engine, parse_dates=["datetime"])
+        return df
+
+
+    def fetch_strategy_signals(self, strategy_name: str) -> pd.DataFrame:
+        """
+        Fetch signals from strategy_signal.<strategy_name> table.
+        """
+        table = f"strategy_signal.{strategy_name}"
+
+        query = f"""
+            SELECT datetime, final_signal
+            FROM {table}
+            ORDER BY datetime
+        """
+        print(f"Fetching signals from table: {table}")
+        df = pd.read_sql(query, self.engine, parse_dates=["datetime"])
+        return df
+
+
+    def fetch_strategy_metadata(self, strategy_name):
+        """Fetch metadata (exchange, symbol, time_horizon) for a given strategy name from strategies_config."""
+        with self.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT exchange, symbol, time_horizon FROM public.strategies_config WHERE name = :name"),
+                {"name": strategy_name}
+            ).mappings().first()  # Use mappings() to access columns by name
+
+            if result:
+                return {
+                    "exchange": result["exchange"],
+                    "symbol": result["symbol"],
+                    "time_horizon": result["time_horizon"]
+                }
+            else:
+                raise ValueError(f"Strategy '{strategy_name}' not found in strategies_config.")
+
+            
+    def save_backtest_results(self, df_results, strategy_name):
+        """
+        Save the backtest results DataFrame to the 'backtest' schema with the strategy_name as the table name.
+        """
+        # Create backtest schema if it doesn't exist
+        with self.engine.connect() as conn:
+            self.cursor.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'backtest')"
+            )
+            schema_exists = self.cursor.fetchone()[0]
+            if not schema_exists:
+                print("Creating schema: backtest")
+                self.cursor.execute("CREATE SCHEMA backtest")
+                conn.commit()
+
+        # Ensure datetime is a column
+        if df_results.index.name == 'datetime':
+            df_results = df_results.reset_index()
+
+        # Required columns for validation (adjust as needed)
+        required_cols = ['datetime', 'action', 'price', 'pnl_percent', 'pnl_sum', 'balance']
+        if not all(col in df_results.columns for col in required_cols):
+            print(f"Error: DataFrame for {strategy_name} missing required columns: {required_cols}")
+            return
+
+        # Save to database
+        table_name = strategy_name
+        print(f"Saving backtest results to table: backtest.{table_name}")
+        df_results.to_sql(
+            table_name,
+            self.engine,
+            schema='backtest',
+            if_exists='replace',  
+            index=False,
+            method='multi'
+        )
+        print(f"Backtest results saved to backtest.{table_name} successfully.")
 
 
 

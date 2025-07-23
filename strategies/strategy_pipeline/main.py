@@ -7,6 +7,7 @@ from signals.technical_indicator_signal.signal_generator import SignalGenerator
 from strategies.strategy_pipeline.signal_processor import SignalProcessor
 from strategies.strategy_pipeline.utils.postgress_handler import DatabaseManager
 from strategies.strategy_pipeline.utils.indicator_utils import INDICATORS
+from data.utils.data_saver import DataSaver
 
 def load_config(config_path="strategies/strategy_pipeline/strategy_config.ini"):
     config = configparser.ConfigParser()
@@ -54,7 +55,13 @@ if __name__ == "__main__":
         # Generate signals
         signal_gen = SignalGenerator(df_indicators)
         df_signals = signal_gen.generate_signals()
-        print(df_signals.head())
+
+        # # Final Signal File
+        # output_path = f"{strategy['exchange']}_{strategy['symbol']}_{strategy['time_horizon']}_signals.csv"
+        # DataSaver.save_to_csv(df_signals, output_path)
+    
+
+        # print(df_signals.head())
         
 
 

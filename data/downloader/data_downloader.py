@@ -1,5 +1,7 @@
+#data/downloader
 import pandas as pd
 import configparser
+import datetime
 from data.utils.data_saver import DataSaver
 from data.utils.postgress_connection import PostgresConnection
 from data.fetch.binance.binance_fetch import BinanceFetcher
@@ -29,7 +31,9 @@ class DataDownloader:
     def _format_table_name(self, exchange, symbol, interval):
         return f"{exchange.lower()}_data.{symbol.lower()}_{interval}"
 
-    def download(self, exchange, symbol, base_interval="1m", start_date=None, end_date=None):
+    def download(self, exchange, symbol, base_interval="1m", start_date="2020-01-01", end_date=None):
+        if end_date is None:
+            end_date = datetime.datetime.now().strftime("%Y-%m-%d")
         table_name = self._format_table_name(exchange, symbol, base_interval)
         print(f"Downloading data from table: {table_name}")
 

@@ -16,6 +16,7 @@ def load_config(config_path="data\\config.ini"):
     return exchange, symbol, time_horizon
 
 
+
 def main():
     #Load config
     exchange, symbol, time_horizon = load_config()

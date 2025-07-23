@@ -3,6 +3,7 @@ import pandas as pd
 from data.utils.postgress_connection import PostgresConnection 
 import os
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -28,6 +29,74 @@ class DatabaseManager:
         if not schema_exists:
             print(f"Creating schema: {schema_name}")
             self.cursor.execute(f"CREATE SCHEMA {schema_name}")
+    
+    def table_exists(self, exchange, symbol, interval):
+        schema_name = f"{exchange.lower()}_data"
+        table_name = self._format_table_name(symbol, interval)
+
+        # Check if schema exists
+        self.cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = %s)",
+            (schema_name,)
+        )
+        schema_exists = self.cursor.fetchone()[0]
+
+        if not schema_exists:
+            print(f"Schema '{schema_name}' does not exist.")
+            return False
+
+        # Check if table exists in the schema
+        self.cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1 
+                FROM information_schema.tables 
+                WHERE table_schema = %s AND table_name = %s
+            )
+            """,
+            (schema_name, table_name)
+        )
+        table_exists = self.cursor.fetchone()[0]
+
+        if table_exists:
+            print(f"Data already exists in '{schema_name}.{table_name}'")
+        else:
+            print(f"Table '{schema_name}.{table_name}' does not exist yet.")
+
+        return table_exists
+    
+    def check_table_up_to_date(self, exchange, symbol, interval):
+        """
+        Check if table exists and if its latest record is within 1 minute of current time
+        Returns: (is_up_to_date: bool, latest_timestamp: datetime or None)
+        """
+        if not self.table_exists(exchange, symbol, interval):
+            return False, None
+
+        schema_name = f"{exchange.lower()}_data"
+        table_name = self._format_table_name(symbol, interval)
+        
+        # Get the latest timestamp from the table
+        query = f"""
+            SELECT MAX(datetime)
+            FROM {schema_name}.{table_name}
+        """
+        self.cursor.execute(query)
+        latest_timestamp = self.cursor.fetchone()[0]
+
+        if latest_timestamp is None:
+            return False, None
+
+        # Consider data up-to-date if latest record is within 1 minute of current time
+        current_time = datetime.utcnow()
+        time_difference = current_time - latest_timestamp
+        
+        # Assuming 1-minute interval data, check if latest record is within 2 minutes
+        # to account for processing delays
+        is_up_to_date = time_difference <= timedelta(minutes=2)
+        
+        return is_up_to_date, latest_timestamp
+
 
     def save_dataframe(self, df, exchange, symbol, interval):
         table_name = self._format_table_name(symbol, interval)
@@ -43,7 +112,7 @@ class DatabaseManager:
             table_name,
             self.engine,
             schema=f"{exchange.lower()}_data",
-            if_exists="replace",
+            if_exists="append",
             index=False
         )
         

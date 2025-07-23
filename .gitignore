@@ -4,3 +4,4 @@ myenv/
 __pycache__/
 db/
 *.whl
+*.bat
