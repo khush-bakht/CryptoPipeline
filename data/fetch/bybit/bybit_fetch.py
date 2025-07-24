@@ -1,154 +1,152 @@
 import pandas as pd
-from pybit.unified_trading import HTTP
-from datetime import datetime
 import time
+import datetime
+from pybit.unified_trading import HTTP
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
-BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
-BYBIT_SECRET_KEY = os.getenv("BYBIT_SECRET_KEY")
+
+API_KEY = os.getenv("BYBIT_API_KEY")
+API_SECRET = os.getenv("BYBIT_SECRET_KEY")
+
+client = HTTP(
+    demo=True,
+    api_key=API_KEY,
+    api_secret=API_SECRET
+)
 
 class BybitFetcher:
-    def __init__(self, symbol, timeframe, start_time, end_time):
-        """
-        Initialize BybitFetcher for fetching futures kline data from Bybit using API keys.
-        
-        Args:
-            symbol (str): Trading pair (e.g., 'BTCUSDT' for futures).
-            timeframe (str): Kline interval (e.g., '1' for 1 minute).
-            start_time (str): Start date in 'YYYY-MM-DD' format.
-            end_time (str): End date in 'YYYY-MM-DD' format or 'now'.
-        """
+    def __init__(self, symbol, interval, start_time, end_time="now"):
+        print(f"[DEBUG] Initializing BybitFetcher with symbol={symbol}, interval={interval}, start_time={start_time}, end_time={end_time}")
         symbol = symbol.upper()
         if not symbol.endswith('USDT'):
             symbol += 'USDT'
         self.symbol = symbol
-        self.timeframe = timeframe
+        self.interval = interval
         self.start_time = start_time
         self.end_time = end_time
-        self.client = HTTP(
-            api_key=BYBIT_API_KEY,
-            api_secret=BYBIT_SECRET_KEY
-        )  # Initialize pybit HTTP client with API keys
-        print(f"[DEBUG] Initialized BybitFetcher for {self.symbol}, timeframe: {self.timeframe}, "
-              f"start: {self.start_time}, end: {self.end_time}")
-        
-    def _parse_datetime(self, date_str):
-        """
-        Convert date string to timestamp in milliseconds.
-        
-        Args:
-            date_str (str): Date string in 'YYYY-MM-DD' format or 'now'.
-        
-        Returns:
-            int: Timestamp in milliseconds.
-        """
-        if date_str.lower() == "now":
-            ts = int(time.time() * 1000)
-            print(f"[DEBUG] Parsed 'now' to timestamp: {ts}")
-            return ts
-        try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            ts = int(dt.timestamp() * 1000)
-            print(f"[DEBUG] Parsed date '{date_str}' to timestamp: {ts}")
-            return ts
-        except ValueError as e:
-            print(f"[DEBUG] Error parsing date '{date_str}': {e}")
-            raise ValueError(f"Invalid date format: {date_str}. Use 'YYYY-MM-DD' or 'now'.") from e
 
     def get_klines(self):
-        """
-        Fetch futures kline data from Bybit for the specified symbol and timeframe.
-        
-        Returns:
-            pandas.DataFrame: DataFrame containing kline data with columns:
-                              ['timestamp', 'open', 'high', 'low', 'close', 'volume']
-        """
-        try:
-            # Convert start and end times to milliseconds
-            start_ts = self._parse_datetime(self.start_time)
-            end_ts = self._parse_datetime(self.end_time)
-            print(f"[DEBUG] Fetching klines for {self.symbol}, timeframe: {self.timeframe}, "
-                  f"start_ts: {start_ts}, end_ts: {end_ts}")
+        print(f"[DEBUG] Starting data fetch for {self.symbol} with interval {self.interval}")
+        all_data = []
+        limit = 1000
+        start_ts = int(pd.to_datetime(self.start_time).timestamp() * 1000)
+        end_ts = int(pd.Timestamp.now().timestamp() * 1000) if self.end_time == "now" else int(pd.to_datetime(self.end_time).timestamp() * 1000)
+        print(f"[DEBUG] Start timestamp: {start_ts} ({pd.to_datetime(start_ts, unit='ms')}), End timestamp: {end_ts} ({pd.to_datetime(end_ts, unit='ms')})")
 
-            # Bybit API parameters for futures (linear perpetual)
-            params = {
-                "category": "linear",  # Futures (linear perpetual contracts)
-                "symbol": self.symbol,
-                "interval": self.timeframe,
-                "start": start_ts,
-                "end": end_ts,
-                "limit": 1000  # Max limit per request
-            }
+        # Map Binance interval format to Bybit interval format
+        interval_map = {
+            '1m': '1',
+            '5m': '5',
+            '15m': '15',
+            '30m': '30',
+            '1h': '60',
+            '4h': '240',
+            '1d': 'D'
+        }
+        bybit_interval = interval_map.get(self.interval, '1')
+        print(f"[DEBUG] Mapped interval {self.interval} to Bybit interval {bybit_interval}")
 
-            # Fetch kline data
-            data = []
-            iteration = 0
-            while start_ts < end_ts:
-                iteration += 1
-                print(f"[DEBUG] API call {iteration}: Fetching klines from {start_ts}")
-                response = self.client.get_kline(**params)
-                if response.get("retCode") != 0:
-                    print(f"[DEBUG] Bybit API error: {response.get('retMsg')}")
-                    raise Exception(f"Bybit API error: {response.get('retMsg')}")
+        iteration = 0
+        max_iterations = 10000  # Safeguard to prevent infinite loops
+        previous_end_ts = None
 
-                klines = response["result"]["list"]
-                if not klines:
-                    print(f"[DEBUG] No more klines returned for {self.symbol}")
+        while True:
+            iteration += 1
+            if iteration > max_iterations:
+                print(f"[DEBUG] Reached maximum iterations ({max_iterations}), breaking loop to prevent infinite loop")
+                break
+
+            print(f"[DEBUG] Iteration {iteration}: Fetching data from {pd.to_datetime(start_ts, unit='ms')} to {pd.to_datetime(end_ts, unit='ms')}")
+            try:
+                print(f"[DEBUG] Making API call with symbol={self.symbol}, interval={bybit_interval}, start={start_ts}, end={end_ts}, limit={limit}")
+                klines = client.get_kline(
+                    category="linear",
+                    symbol=self.symbol,
+                    interval=bybit_interval,
+                    start=start_ts,
+                    end=end_ts,
+                    limit=limit
+                )
+
+                if not klines or 'result' not in klines or 'list' not in klines['result']:
+                    print(f"[DEBUG] No data returned from API or invalid response: {klines}")
                     break
 
-                print(f"[DEBUG] Retrieved {len(klines)} klines in iteration {iteration}")
-                data.extend(klines)
-                
-                # Update start_ts to the timestamp of the last kline + 1ms
-                start_ts = int(klines[0][0]) + 1
-                params["start"] = start_ts
+                raw_klines = klines['result']['list']
+                print(f"[DEBUG] Received {len(raw_klines)} klines in this batch")
+                if not raw_klines:
+                    print("[DEBUG] Empty klines list, breaking loop")
+                    break
 
-                # Avoid hitting rate limits
-                time.sleep(0.1)
+                all_data.extend(raw_klines)
+                print(f"[DEBUG] Total klines collected so far: {len(all_data)}")
 
-            if not data:
-                print(f"[DEBUG] No data fetched for {self.symbol}")
-                return pd.DataFrame()
+                # Bybit returns klines in descending order (newest to oldest)
+                # Use the oldest timestamp (last in the batch) to set the next end_ts
+                new_end_ts = int(raw_klines[-1][0]) - 1  # Move to just before the oldest kline
+                print(f"[DEBUG] Newest kline timestamp: {raw_klines[0][0]} ({pd.to_datetime(int(raw_klines[0][0]), unit='ms')})")
+                print(f"[DEBUG] Oldest kline timestamp: {raw_klines[-1][0]} ({pd.to_datetime(int(raw_klines[-1][0]), unit='ms')})")
+                print(f"[DEBUG] Proposed new end_ts: {new_end_ts} ({pd.to_datetime(new_end_ts, unit='ms')})")
 
-            print(f"[DEBUG] Total klines fetched: {len(data)}")
-            
-            # Convert to DataFrame
-            df = pd.DataFrame(
-                data,
-                columns=["timestamp", "open", "high", "low", "close", "volume", "turnover"]
-            )
-            print(f"[DEBUG] Created DataFrame with columns: {df.columns.tolist()}")
-            
-            # Convert timestamp to datetime and adjust data types
-            df["timestamp"] = pd.to_datetime(df["timestamp"].astype(float), unit="ms")
-            df[["open", "high", "low", "close", "volume"]] = df[
-                ["open", "high", "low", "close", "volume"]
-            ].astype(float)
-            print(f"[DEBUG] Converted timestamp to datetime and cast columns to float")
-            
-            # Drop turnover column as it's not needed
-            df = df.drop(columns=["turnover"])
-            print(f"[DEBUG] Dropped 'turnover' column")
-            
-            # Sort by timestamp ascending
-            df = df.sort_values(by="timestamp").reset_index(drop=True)
-            print(f"[DEBUG] Sorted DataFrame by timestamp, final row count: {len(df)}")
-            
-            return df
+                # Check if end_ts is stuck
+                if previous_end_ts == new_end_ts:
+                    print(f"[DEBUG] end_ts has not changed (stuck at {new_end_ts}), breaking loop")
+                    break
+                previous_end_ts = end_ts
 
-        except Exception as e:
-            print(f"[DEBUG] Error fetching Bybit futures data: {e}")
+                # Update end_ts for the next batch
+                end_ts = new_end_ts
+
+                # Break if we've reached or passed the start_time
+                if end_ts <= start_ts:
+                    print("[DEBUG] Reached or passed start_time, breaking loop")
+                    break
+
+                time.sleep(0.2)
+                print(f"[DEBUG] Paused for 0.2 seconds to avoid rate limiting")
+
+            except Exception as e:
+                print(f"[DEBUG] Error fetching batch: {e}")
+                break
+
+        print(f"[DEBUG] Finished fetching, total klines collected: {len(all_data)}")
+        if not all_data:
+            print("[DEBUG] No data collected, returning empty DataFrame")
             return pd.DataFrame()
 
-    def __del__(self):
-        """
-        Close the Bybit client session when the object is destroyed.
-        """
-        try:
-            self.client.session.close()
-            print("[DEBUG] Closed Bybit client session")
-        except Exception as e:
-            print(f"[DEBUG] Error closing Bybit client session: {e}")
+        print("[DEBUG] Converting klines to DataFrame")
+        df = pd.DataFrame(all_data, columns=[
+            "datetime", "open", "high", "low", "close", "volume", "turnover"
+        ])
+
+        print("[DEBUG] Converting datetime column from milliseconds")
+        df["datetime"] = pd.to_datetime(pd.to_numeric(df["datetime"]), unit="ms")
+        print("[DEBUG] Selecting OHLCV columns")
+        df = df[["datetime", "open", "high", "low", "close", "volume"]]
+
+        print("[DEBUG] Converting numeric columns to float and rounding to 3 decimal places")
+        df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
+        df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].round(3)
+
+        print("[DEBUG] Sorting by datetime ascending to ensure correct order")
+        df = df.sort_values("datetime")
+
+        print("[DEBUG] Setting datetime as index")
+        df.set_index("datetime", inplace=True)
+
+        print("[DEBUG] Dropping last record as it may be incomplete")
+        df = df.iloc[:-1]
+
+        print(f"[DEBUG] Final DataFrame has {len(df)} rows for {self.symbol.upper()} - {self.interval}")
+        return df
+
+
+if __name__ == "__main__":
+    print("[DEBUG] Running main block")
+    fetcher = BybitFetcher(symbol="BTCUSDT", interval="1m", start_time="2020-01-01")
+    df = fetcher.get_klines()
+    print("[DEBUG] DataFrame Shape:", df.shape)
+    print("[DEBUG] DataFrame Head:")
+    print(df.head())

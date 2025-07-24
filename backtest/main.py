@@ -6,8 +6,9 @@ def main(strategy_name: str):
     db = DatabaseManager()
 
     # Fetch strategy metadata
-    metadata = db.fetch_strategy_metadata(strategy_name)
-    exchange, symbol, time_horizon = metadata["exchange"], metadata["symbol"], metadata["time_horizon"]
+    # metadata = db.fetch_strategy_metadata(strategy_name)
+    # exchange, symbol, time_horizon = metadata["exchange"], metadata["symbol"], metadata["time_horizon"]
+    exchange, symbol = "bybit" , "btc"
 
     # Load 1-minute OHLCV data
     ohlcv = db.fetch_ohlcv_data(exchange, symbol, '1m')
@@ -18,7 +19,8 @@ def main(strategy_name: str):
     # Ensure datetime format and sorting
     ohlcv['datetime'] = pd.to_datetime(ohlcv['datetime'])
     signals['datetime'] = pd.to_datetime(signals['datetime'])
-
+    
+    print("Backtesting started")
     # Instantiate backtester
     backtester = Backtester(ohlcv_df=ohlcv, signals_df=signals)
 
@@ -27,8 +29,8 @@ def main(strategy_name: str):
 
     # Display final balance and summary
     if not result.empty:
-        result[['price', 'pnl_percent', 'pnl_sum', 'balance']] = result[[
-            'price', 'pnl_percent', 'pnl_sum', 'balance'
+        result[['buy_price','sell_price', 'pnl_percent', 'pnl_sum', 'balance']] = result[[
+            'buy_price','sell_price', 'pnl_percent', 'pnl_sum', 'balance'
         ]].round(2)
         print(f"\n Final Balance: {result.iloc[-1]['balance']:.2f}")
         print(f"Total Trades: {len(result[result['action'].isin(['tp', 'sl'])])}")
@@ -39,4 +41,4 @@ def main(strategy_name: str):
         print("No trades were executed.")
 
 if __name__ == "__main__":
-    main("strategy_v1_1")  
+    main("strategy_001")  

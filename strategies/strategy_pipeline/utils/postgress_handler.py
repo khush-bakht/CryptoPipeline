@@ -159,7 +159,7 @@ class DatabaseManager:
             df_results = df_results.reset_index()
 
         # Required columns for validation (adjust as needed)
-        required_cols = ['datetime', 'action', 'price', 'pnl_percent', 'pnl_sum', 'balance']
+        required_cols = ['datetime', 'action', 'buy_price','sell_price', 'pnl_percent', 'pnl_sum', 'balance']
         if not all(col in df_results.columns for col in required_cols):
             print(f"Error: DataFrame for {strategy_name} missing required columns: {required_cols}")
             return
