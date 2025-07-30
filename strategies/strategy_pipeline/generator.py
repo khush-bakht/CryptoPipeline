@@ -1,3 +1,4 @@
+#strategies/strategy_pipeline/generator.py
 import random
 import pandas as pd
 from strategies.strategy_pipeline.utils.indicator_utils import INDICATORS

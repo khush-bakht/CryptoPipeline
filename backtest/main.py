@@ -6,9 +6,9 @@ def main(strategy_name: str):
     db = DatabaseManager()
 
     # Fetch strategy metadata
-    # metadata = db.fetch_strategy_metadata(strategy_name)
-    # exchange, symbol, time_horizon = metadata["exchange"], metadata["symbol"], metadata["time_horizon"]
-    exchange, symbol = "bybit" , "btc"
+    metadata = db.fetch_strategy_metadata(strategy_name)
+    exchange, symbol, time_horizon = metadata["exchange"], metadata["symbol"], metadata["time_horizon"]
+    #exchange, symbol = "bybit" , "btc"
 
     # Load 1-minute OHLCV data
     ohlcv = db.fetch_ohlcv_data(exchange, symbol, '1m')
@@ -41,4 +41,4 @@ def main(strategy_name: str):
         print("No trades were executed.")
 
 if __name__ == "__main__":
-    main("strategy_001")  
+    main("strategy_v1_2")  

@@ -43,19 +43,19 @@ class Backtester:
         position_type = None
         entry_price = 0.0
         results = []
-        pnl_sum = 0.0  
+        pnl_sum = 0.0
 
-        for current_time, row in df.iterrows():
-            signal = row['signal']
-            open_price = row['open']
-            high_price = row['high']
-            low_price = row['low']
+        for row in df.itertuples():
+            current_time = row.Index  # because 'datetime' is set as index
+            signal = row.signal
+            open_price = row.open
+            high_price = row.high
+            low_price = row.low
 
             # Handle direction reversal or continue existing trade
             if signal in [1, -1] and in_position:
                 is_direction_change = (signal == 1 and position_type == 'short') or (signal == -1 and position_type == 'long')
 
-                # Close current position only if direction changes
                 if is_direction_change:
                     if position_type == 'long':
                         if low_price <= sl_price:
@@ -80,10 +80,9 @@ class Backtester:
                             action = 'direction_change'
                         gross_pnl_percent = (entry_price - exit_price) / entry_price
 
-                    
                     net_pnl_percent = gross_pnl_percent - self.fee_percent
                     self.balance += self.position_size * net_pnl_percent
-                    pnl_sum += net_pnl_percent * 100  
+                    pnl_sum += net_pnl_percent * 100
 
                     results.append({
                         'datetime': current_time,
@@ -106,7 +105,6 @@ class Backtester:
                 self.position_size = self.balance
                 fee = self.fee_percent * self.position_size
                 self.balance -= fee
-                # Reflect entry fee in pnl_percent, no separate balance deduction
                 pnl_percent = -self.fee_percent
                 pnl_sum += pnl_percent * 100
                 tp_price = entry_price * (1 + self.tp) if position_type == 'long' else entry_price * (1 - self.tp)
