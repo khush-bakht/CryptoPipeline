@@ -14,6 +14,18 @@ class DatabaseManager:
 
     
     def create_strategies_table(self):
+        window_indicators = [
+            'sma', 'ema', 'wma', 'dema', 'tema', 'trima', 'kama', 't3', 'midpoint', 'bbands',
+            'adx', 'adxr', 'aroon', 'aroonosc', 'cci', 'cmo', 'dx', 'mfi', 'minus_di', 'minus_dm',
+            'plus_di', 'plus_dm', 'rsi', 'trix', 'willr', 'atr', 'natr', 'trange'
+        ]
+        # Build column definitions with window columns immediately following their indicators
+        column_definitions = []
+        for ind in INDICATORS:
+            column_definitions.append(f"{ind} BOOLEAN")
+            if ind in window_indicators:
+                column_definitions.append(f"{ind}_window INTEGER DEFAULT 0")
+        
         with self.engine.connect() as conn:
             create_table_query = f"""
                 CREATE TABLE IF NOT EXISTS public.strategies_config (
@@ -21,7 +33,9 @@ class DatabaseManager:
                     exchange VARCHAR(50),
                     symbol VARCHAR(50),
                     time_horizon VARCHAR(10),
-                    {', '.join([f"{ind} BOOLEAN" for ind in INDICATORS])}
+                    tp FLOAT DEFAULT 0.0,
+                    sl FLOAT DEFAULT 0.0,
+                    {', '.join(column_definitions)}
                 )
             """
             conn.execute(text(create_table_query))

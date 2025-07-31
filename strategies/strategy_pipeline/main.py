@@ -113,7 +113,7 @@ if __name__ == "__main__":
             output_df['volume'] = output_df['volume'].round(2)
             # Save only datetime, ohlcv, and signal columns
             # output_filename = f"{strategy['exchange']}_{strategy['symbol']}_{strategy['time_horizon']}_signals.csv"
-            # output_df.to_csv(output_filename, index=False)
+            output_df.to_csv("signals.csv", index=False)
             # print(f"Signal data saved to {output_filename}")
         else:
             print(f"No data available for {strategy['exchange']}")

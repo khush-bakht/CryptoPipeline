@@ -36,29 +36,30 @@ class DataDownloader:
             end_date = datetime.datetime.now().strftime("%Y-%m-%d")
         table_name = self._format_table_name(exchange, symbol, base_interval)
         print(f"Downloading data from table: {table_name}")
-
         try:
-            start_dt = pd.to_datetime(start_date)
-            end_dt = pd.to_datetime(end_date)
             df = pd.read_sql(f"SELECT * FROM {table_name}", self.engine, parse_dates=["datetime"])
+
+            # Apply filtering based on start_date and end_date
+            df = df[(df["datetime"] >= pd.to_datetime(start_date))]
+            if end_date:
+                df = df[df["datetime"] <= pd.to_datetime(end_date)]
+
             df.set_index("datetime", inplace=True)
-            df = df.loc[start_dt:end_dt]
+            return df
         except Exception as e:
             print(f"Error reading table '{table_name}': {e}")
             df = pd.DataFrame()
         finally:
             self.engine.dispose()
-        if not df.empty:
-            return df
 
         if df.empty and start_date and end_date:
             print(f"No data found in {table_name}. Attempting to fetch...")
             # Fetch data based on exchange
             if exchange == "binance":
-                fetcher = BinanceFetcher(symbol, base_interval, "2020-01-01", end_date)
+                fetcher = BinanceFetcher(symbol, base_interval, start_date, end_date)
                 df = fetcher.get_klines()
             elif exchange == "bybit":
-                fetcher = BybitFetcher(symbol, base_interval, start_time="2020-01-01", end_time=end_date)
+                fetcher = BybitFetcher(symbol, base_interval, start_time=start_date, end_time=end_date)
                 df = fetcher.get_klines()
             else:
                 print(f"Exchange '{exchange}' not supported for fetching.")
@@ -71,8 +72,6 @@ class DataDownloader:
                 db = DatabaseManager()
                 db.save_dataframe(clean_df, exchange, symbol, base_interval)
                 db.close()
-                clean_df = clean_df.loc[start_dt:end_dt]
-                
                 return clean_df
                 
             else:

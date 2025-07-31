@@ -217,6 +217,8 @@ class Optimizer:
         if signal_df is None or signal_df.empty:
             logging.warning(f"No signals generated for {symbol}")
             return 0.0, None, None
+        signal_df.to_csv("signals.csv", index=False)
+        print("_______Signals_______")
 
         # Process signals with voting
         processor = SignalProcessor()
@@ -268,33 +270,48 @@ class Optimizer:
 
             # Save best trial data
             if best_signal_df is not None and best_results is not None:
-                
                 if best_signal_df is not None and not best_signal_df.empty:
                     db.save_signals(best_signal_df, strategy['name'])
                     print(f"Saved final signals for {strategy['name']}")
 
                 # Display final balance and summary
                 if not best_results.empty:
-                    best_results[['buy_price','sell_price', 'pnl_percent', 'pnl_sum', 'balance']] = best_results[[
-                        'buy_price','sell_price', 'pnl_percent', 'pnl_sum', 'balance'
+                    best_results[['buy_price', 'sell_price', 'pnl_percent', 'pnl_sum', 'balance']] = best_results[[
+                        'buy_price', 'sell_price', 'pnl_percent', 'pnl_sum', 'balance'
                     ]].round(2)
                     print(f"\n Final Balance: {best_results.iloc[-1]['balance']:.2f}")
                     print(f"Total Trades: {len(best_results[best_results['action'].isin(['tp', 'sl'])])}")
                     print(best_results.tail(10))
-                            
                     db.save_backtest_results(best_results, strategy['name'])
                 else:
                     print("No trades were executed.")
-                        # Append strategy to strategies_config table
+
+                # Append strategy to strategies_config table with indicator windows
                 strategy_config = {
                     'name': strategy['name'],
                     'exchange': strategy['exchange'],
                     'symbol': strategy['symbol'],
-                    'time_horizon': strategy['time_horizon']
+                    'time_horizon': strategy['time_horizon'],
+                    'tp': round(best_params.get('tp', 0.0), 2), 
+                    'sl': round(best_params.get('sl', 0.0), 4),
                 }
+                # Add indicator enable/disable flags
                 strategy_config.update({ind: strategy.get(ind, False) for ind in INDICATORS})
+                # Add indicator window sizes
+                window_indicators = [
+                    'sma', 'ema', 'wma', 'dema', 'tema', 'trima', 'kama', 't3', 'midpoint', 'bbands',
+                    'adx', 'adxr', 'aroon', 'aroonosc', 'cci', 'cmo', 'dx', 'mfi', 'minus_di', 'minus_dm',
+                    'plus_di', 'plus_dm', 'rsi', 'trix', 'willr', 'atr', 'natr', 'trange'
+                ]
+                for ind in window_indicators:
+                    window_key = f"{ind}_window"
+                    if strategy.get(ind, False) and best_params and window_key in best_params:
+                        strategy_config[window_key] = best_params[window_key]
+                    else:
+                        strategy_config[window_key] = 0
+
                 db.save_strategies([strategy_config])
-                print(f"Appended strategy {strategy['name']} to strategies_config table")  
+                print(f"Appended strategy {strategy['name']} to strategies_config table")
 
                 metadata_file = f"optimization_results/{strategy['name']}_metadata.json"
                 metadata = {
@@ -303,7 +320,7 @@ class Optimizer:
                     'symbol': strategy['symbol'],
                     'time_horizon': strategy['time_horizon'],
                     'pnl_sum': best_pnl,
-                    'Optimized params': best_params
+                    'optimized_params': best_params
                 }
                 with open(metadata_file, 'w') as f:
                     json.dump(metadata, f, indent=4)
