@@ -293,7 +293,7 @@ class Optimizer:
                     'symbol': strategy['symbol'],
                     'time_horizon': strategy['time_horizon'],
                     'tp': round(best_params.get('tp', 0.0), 2), 
-                    'sl': round(best_params.get('sl', 0.0), 4),
+                    'sl': round(best_params.get('sl', 0.0), 2),
                 }
                 # Add indicator enable/disable flags
                 strategy_config.update({ind: strategy.get(ind, False) for ind in INDICATORS})

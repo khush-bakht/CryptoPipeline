@@ -6,6 +6,7 @@ configparser
 python-dotenv 
 psycopg2-binary
 sqlalchemy>=2.0.0
-
+scikit-learn
+optuna
 #TA-Lib (if this not works: download this file TA_Lib-0.4.28-cp310-cp310-win_amd64.whl and 
 # run pip install TA_Lib-0.4.28-cp310-cp310-win_amd64.whl)

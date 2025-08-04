@@ -93,6 +93,7 @@ class Backtester:
                         'pnl_sum': pnl_sum,
                         'balance': self.balance
                     })
+                    
                     in_position = False
                 else:
                     continue

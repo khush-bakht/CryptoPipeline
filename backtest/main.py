@@ -41,4 +41,4 @@ def main(strategy_name: str):
         print("No trades were executed.")
 
 if __name__ == "__main__":
-    main("strategy_v1_2")  
+    main("strategy_opt_1")  
