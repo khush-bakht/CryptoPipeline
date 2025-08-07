@@ -473,9 +473,11 @@ export default function StrategiesPage() {
                           }`}
                         >
                           <td className="p-6">
-                            <div className="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">
-                              {strategy.name}
-                            </div>
+                            <Link href={`/strategies/${strategy.name}`}>
+                              <div className="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors hover:underline cursor-pointer">
+                                {strategy.name}
+                              </div>
+                            </Link>
                           </td>
                           <td className="p-6">
                             <Badge variant="outline" className="bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800 border-emerald-200 shadow-sm font-medium">
